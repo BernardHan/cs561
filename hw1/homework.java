@@ -28,11 +28,13 @@ public class homework{
 
   public ArrayList<int[]> placeLizard(Input input){
     int[] cols = new int[input.size];
+    Arrays.fill(cols, -1);
     ArrayList<int[]> results = new ArrayList<int[]>();
     boolean found = false;
 
     if(input.method.equals("DFS")){
-      found = placeLizard(0, cols, results, input, input.numLizard);
+      //found = placeLizard(0, cols, results, input, input.numLizard);
+      found = placeLizardDFS(results, input);
     }
     else if(input.method.equals("BFS")){
       found = placeLizardBFS(results, input);
@@ -49,12 +51,10 @@ public class homework{
 
   private boolean placeLizardBFS(ArrayList<int[]> results, Input input){
     Queue<Node> queue = new LinkedList<Node>();
-    for(int i = 0; i < input.size; i++){
-      int[] cols = new int[input.size];
-      Arrays.fill(cols, -1);
-      cols[0] = i;
-      queue.add(new Node(0, cols, input.numLizard - 1));
-    }
+
+    int[] init_cols = new int[input.size];
+    Arrays.fill(init_cols, -1);
+    queue.add(new Node(-1, init_cols, input.numLizard));
 
     while(!queue.isEmpty()){
       Node node = queue.remove();
@@ -62,15 +62,49 @@ public class homework{
       int[] cols = node.cols;
 
       if(row < input.size && node.lizardLeft > 0){
+        int[] tmp = cols.clone();
         for(int col = 0; col < input.size; col++){
           if(noEat(cols, row, col)){
-
             cols[row] = col;
             queue.add(new Node(row, cols.clone(), node.lizardLeft - 1));
           }
         }
         // skip row without placing lizard
-        queue.add(new Node(row, cols.clone(), node.lizardLeft));
+        queue.add(new Node(row, tmp, node.lizardLeft));
+      }
+      else{
+        if(node.lizardLeft == 0){
+          results.add(cols.clone());
+          //return true;
+        }
+      }
+    }
+    // return false;
+    return true;
+  }
+
+  private boolean placeLizardDFS(ArrayList<int[]> results, Input input){
+    Stack<Node> stack = new Stack<Node>();
+
+    int[] init_cols = new int[input.size];
+    Arrays.fill(init_cols, -1);
+    stack.push(new Node(-1, init_cols, input.numLizard));
+
+    while(!stack.isEmpty()){
+      Node node = stack.pop();
+      int row = node.lastRow + 1;
+      int[] cols = node.cols;
+
+      if(row < input.size && node.lizardLeft > 0){
+        int[] tmp = cols.clone();
+        for(int col = 0; col < input.size; col++){
+          if(noEat(cols, row, col)){
+            cols[row] = col;
+            stack.push(new Node(row, cols.clone(), node.lizardLeft - 1));
+          }
+        }
+        // skip row without placing lizard
+        stack.push(new Node(row, tmp, node.lizardLeft));
       }
       else{
         if(node.lizardLeft == 0){
@@ -103,6 +137,7 @@ public class homework{
       return false;
     }
     else{
+      int[] tmp = cols.clone();
       for(int col = 0; col < input.size; col++){
         if(noEat(cols, row, col)){
           cols[row] = col;
@@ -112,6 +147,10 @@ public class homework{
           }
         }
       }
+      boolean found = placeLizard(row + 1, tmp, results, input, lizardLeft);
+      //if(found){
+        //return true;
+      //}
     }
 
     //return false;
@@ -152,8 +191,14 @@ public class homework{
     Input input = new Input(method, Integer.parseInt(size), Integer.parseInt(numLizard));
 
     String line = null;
+    int row = 0;
     while((line = reader.readLine()) != null){
-      input.layout.add(line);
+      for(int col = 0; col < line.length(); col++){
+        if(line.charAt(col) == '2'){
+          input.trees.add(new Tree(row, col));
+        }
+      }
+      row++;
     }
 
     reader.close();
@@ -211,7 +256,7 @@ public class homework{
   }
 
   private boolean checkValid(int[] cols, int row, int col){
-    for(int checkRow = 0; checkRow < cols.length; checkRow++){
+    for(int checkRow = 0; checkRow < cols.length && col != -1; checkRow++){
       if(checkRow != row){
         int checkCol = cols[checkRow];
         if(checkCol == -1) continue;
@@ -236,8 +281,8 @@ public class homework{
     System.out.println("Size: " + input.size);
     System.out.println("Number of lizard: " + input.numLizard);
 
-    for(String row : input.layout){
-      System.out.println(row);
+    for(Tree tree : input.trees){
+      System.out.println("[" + tree.row + ", " + tree.col + "]");
     }
 
     System.out.println();
@@ -249,13 +294,23 @@ public class homework{
     public int size;
     public int numLizard;
 
-    public ArrayList<String> layout;
+    public ArrayList<Tree> trees;
 
     public Input(String method, int size, int numLizard){
       this.method = method;
       this.size = size;
       this.numLizard = numLizard;
-      layout = new ArrayList<String>();
+      trees = new ArrayList<Tree>();
+    }
+  }
+
+  static class Tree{
+    public int row;
+    public int col;
+
+    public Tree(int row, int col){
+      this.row = row;
+      this.col = col;
     }
   }
 
