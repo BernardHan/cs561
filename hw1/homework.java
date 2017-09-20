@@ -19,7 +19,7 @@ public class homework{
       System.out.println("No Solution.");
     }
     else{
-      solution.printResults(results, true);
+      solution.printResults(results, true, input);
       System.out.println(results.size());
     }
 
@@ -64,7 +64,8 @@ public class homework{
       if(row < input.size && node.lizardLeft > 0){
         int[] tmp = cols.clone();
         for(int col = 0; col < input.size; col++){
-          if(noEat(cols, row, col)){
+          // make sure [row, col] is not a tree
+          if(noTree(input, row, col) && noEat(cols, row, col, input)){
             cols[row] = col;
             queue.add(new Node(row, cols.clone(), node.lizardLeft - 1));
           }
@@ -98,7 +99,7 @@ public class homework{
       if(row < input.size && node.lizardLeft > 0){
         int[] tmp = cols.clone();
         for(int col = 0; col < input.size; col++){
-          if(noEat(cols, row, col)){
+          if(noTree(input, row, col) && noEat(cols, row, col, input)){
             cols[row] = col;
             stack.push(new Node(row, cols.clone(), node.lizardLeft - 1));
           }
@@ -117,55 +118,59 @@ public class homework{
     return true;
   }
 
-  private int[] copyArr(int[] cols, int newVal){
-    int[] result = new int[cols.length + 1];
-    int i = 0;
-    for(i = 0; i < cols.length; i++){
-      result[i] = cols[i];
-    }
-    result[i] = newVal;
-
-    return result;
-  }
-
-  private boolean placeLizard(int row, int[] cols, ArrayList<int[]> results, Input input, int lizardLeft){
-    if(lizardLeft == 0){
-      results.add(cols.clone());
-      return true;
-    }
-    else if(row == input.size){
-      return false;
-    }
-    else{
-      int[] tmp = cols.clone();
-      for(int col = 0; col < input.size; col++){
-        if(noEat(cols, row, col)){
-          cols[row] = col;
-          boolean found = placeLizard(row + 1, cols, results, input, lizardLeft - 1);
-          if(found){
-            //return true;
-          }
-        }
-      }
-      boolean found = placeLizard(row + 1, tmp, results, input, lizardLeft);
-      //if(found){
-        //return true;
-      //}
+  private boolean noTree(Input input, int row, int col){
+    for(Tree tree : input.trees){
+      if(tree.row == row && tree.col == col) return false;
     }
 
-    //return false;
     return true;
   }
 
-  private boolean noEat(int[] cols, int row, int col){
+  private boolean noEat(int[] cols, int row, int col, Input input){
+    // now with trees, because of trees, multiple lizards can be in the same row, same col, same diagonal
     for(int checkRow = 0; checkRow < row; checkRow++){
       int checkCol = cols[checkRow];
       if(checkCol == -1) continue;
-      if(checkCol == col) return false;
+      if(checkCol == col){
+        boolean treeBetween = false;
+        // test if there's a tree between [checkRow, checkCol] and [row, col]
+        for(Tree tree : input.trees){
+          if(tree.row < row && tree.row > checkRow){
+            // there's a tree between the rows, check col
+            if(tree.col == checkCol){
+              // there's a tree between even tho both lizards on the same col, no problem
+              treeBetween = true;
+              break;
+            }
+          }
+        }
+        // checked all trees, no trees in between, invalid placement
+        if(!treeBetween) return false;
+      }
 
       int colDiff = Math.abs(checkCol - col);
       int rowDiff = Math.abs(checkRow - row);
-      if(colDiff == rowDiff) return false;
+      if(colDiff == rowDiff){
+        // now check if theres a tree between this diagonal
+        // tree must in diagonal of [checkRow, checkCol] and also [row, col]
+        // also need to be in between [checkRow, row] to avoid opposite diagonal
+        boolean treeBetween = false;
+        for(Tree tree : input.trees){
+          // first search for tree that has row in between
+          if(tree.row < row && tree.row > checkRow){
+            int treeColDiff1 = Math.abs(tree.col - col);
+            int treeColDiff2 = Math.abs(tree.col - checkCol);
+            int treeRowDiff1 = row - tree.row;
+            int treeRowDiff2 = tree.row - checkRow;
+            if(treeRowDiff1 == treeColDiff1 && treeRowDiff2 == treeColDiff2){
+              // found a tree in the diagonal
+              treeBetween = true;
+              break;
+            }
+          }
+        }
+        if(!treeBetween) return false;
+      }
     }
     return true;
   }
@@ -193,6 +198,7 @@ public class homework{
     String line = null;
     int row = 0;
     while((line = reader.readLine()) != null){
+      input.lines.add(line);
       for(int col = 0; col < line.length(); col++){
         if(line.charAt(col) == '2'){
           input.trees.add(new Tree(row, col));
@@ -206,37 +212,87 @@ public class homework{
     return input;
   }
 
-  private void printResults(ArrayList<int[]> results, boolean printFalse){
+
+  private boolean checkValid(int[] cols, Input input){
+    int numLizard = 0;
+    for(int row = 0; row < cols.length; row++){
+      int col = cols[row];
+      if(col != -1) numLizard++;
+      if(!noTree(input, row, col)) return false;
+      if(!checkValid(cols, row, col, input)) return false;
+    }
+    if(numLizard != input.numLizard) return false;
+    return true;
+  }
+
+  private boolean checkValid(int[] cols, int row, int col, Input input){
+    for(int checkRow = 0; checkRow < cols.length && col != -1; checkRow++){
+      int checkCol = cols[checkRow];
+      if(checkCol == -1 || (row == checkRow && col == checkCol)) continue;
+
+      // when it's on same row, check if there's a tree between [row, col] and [row, checkCol]
+      if(row == checkRow){
+        // TODO
+      }
+
+      int largeRow = row > checkRow ? row : checkRow;
+      int smallRow = row < checkRow ? row : checkRow; // row and checkRow should not be the same, already handled
+      if(checkCol == col){
+        boolean treeBetween = false;
+        // test if there's a tree between [checkRow, checkCol] and [row, col]
+        for(Tree tree : input.trees){
+          if(tree.row < largeRow && tree.row > smallRow){
+            // there's a tree between the rows, check col
+            if(tree.col == checkCol){
+              // there's a tree between even tho both lizards on the same col, no problem
+              treeBetween = true;
+              break;
+            }
+          }
+        }
+        // checked all trees, no trees in between, invalid placement
+        if(!treeBetween) return false;
+      }
+
+      int colDiff = Math.abs(checkCol - col);
+      int rowDiff = largeRow - smallRow;
+      if(colDiff == rowDiff){
+        // now check if theres a tree between this diagonal
+        // tree must in diagonal of [checkRow, checkCol] and also [row, col]
+        // also need to be in between [checkRow, row] to avoid opposite diagonal
+        boolean treeBetween = false;
+        for(Tree tree : input.trees){
+          // first search for tree that has row in between
+          if(tree.row < largeRow && tree.row > smallRow){
+            int treeColDiff1 = Math.abs(tree.col - col);
+            int treeColDiff2 = Math.abs(tree.col - checkCol);
+            int treeRowDiff1 = Math.abs(row - tree.row);
+            int treeRowDiff2 = Math.abs(tree.row - checkRow);
+            if(treeRowDiff1 == treeColDiff1 && treeRowDiff2 == treeColDiff2){
+              // found a tree in the diagonal
+              treeBetween = true;
+              break;
+            }
+          }
+        }
+        if(!treeBetween) return false;
+      }
+    }
+    return true;
+  }
+
+
+  private void printResults(ArrayList<int[]> results, boolean printFalse, Input input){
     int count = 0;
     for(int[] result : results){
-      if(printFalse && !checkValid(result)){
+      if(printFalse && !checkValid(result, input)){
         count++;
-        for(int col : result){
-          if(col != -1){
-            printZeros(col);
-            System.out.print(" 1 ");
-            printZeros(result.length - col - 1);
-          }
-          else{
-            printZeros(result.length);
-          }
-          System.out.println();
-        }
+        printResult(result, input);
         System.out.println();
         System.out.println();
       }
       else if(!printFalse){
-        for(int col : result){
-          if(col != -1){
-            printZeros(col);
-            System.out.print(" 1 ");
-            printZeros(result.length - col - 1);
-          }
-          else{
-            printZeros(result.length);
-          }
-          System.out.println();
-        }
+        printResult(result, input);
         System.out.println();
         System.out.println();
       }
@@ -247,42 +303,34 @@ public class homework{
     }
   }
 
-  private boolean checkValid(int[] cols){
-    for(int row = 0; row < cols.length; row++){
-      int col = cols[row];
-      if(!checkValid(cols, row, col)) return false;
-    }
-    return true;
-  }
-
-  private boolean checkValid(int[] cols, int row, int col){
-    for(int checkRow = 0; checkRow < cols.length && col != -1; checkRow++){
-      if(checkRow != row){
-        int checkCol = cols[checkRow];
-        if(checkCol == -1) continue;
-        if(checkCol == col) return false;
-
-        int colDiff = Math.abs(checkCol - col);
-        int rowDiff = Math.abs(checkRow - row);
-        if(colDiff == rowDiff) return false;
+  private void printResult(int[] result, Input input){
+    for(int row = 0; row < result.length; row++){
+      int col = result[row];
+      String line = input.lines.get(row);
+      if(col != -1){
+        line = line.substring(0, col) + "1" + line.substring(col + 1);
+        line = line.replace("", " ").trim();
+        System.out.println(line);
       }
-    }
-    return true;
-  }
-
-  private void printZeros(int num){
-    for(int i = 0 ; i < num; i++){
-      System.out.print(" 0 ");
+      else{
+        line = line.replace("", " ").trim();
+        System.out.println(line);
+      }
     }
   }
 
   private void printInput(Input input){
+    System.out.println();
     System.out.println("Method: " + input.method);
     System.out.println("Size: " + input.size);
     System.out.println("Number of lizard: " + input.numLizard);
 
     for(Tree tree : input.trees){
       System.out.println("[" + tree.row + ", " + tree.col + "]");
+    }
+    System.out.println();
+    for(String line : input.lines){
+      System.out.println(line);
     }
 
     System.out.println();
@@ -295,12 +343,14 @@ public class homework{
     public int numLizard;
 
     public ArrayList<Tree> trees;
+    public ArrayList<String> lines;
 
     public Input(String method, int size, int numLizard){
       this.method = method;
       this.size = size;
       this.numLizard = numLizard;
       trees = new ArrayList<Tree>();
+      lines = new ArrayList<String>();
     }
   }
 
@@ -324,5 +374,34 @@ public class homework{
       this.cols = cols;
       lizardLeft = lizard;
     }
+  }
+
+  private boolean placeLizard(int row, int[] cols, ArrayList<int[]> results, Input input, int lizardLeft){
+    if(lizardLeft == 0){
+      results.add(cols.clone());
+      return true;
+    }
+    else if(row == input.size){
+      return false;
+    }
+    else{
+      int[] tmp = cols.clone();
+      for(int col = 0; col < input.size; col++){
+        if(noEat(cols, row, col, input)){
+          cols[row] = col;
+          boolean found = placeLizard(row + 1, cols, results, input, lizardLeft - 1);
+          if(found){
+            //return true;
+          }
+        }
+      }
+      boolean found = placeLizard(row + 1, tmp, results, input, lizardLeft);
+      //if(found){
+        //return true;
+      //}
+    }
+
+    //return false;
+    return true;
   }
 }
