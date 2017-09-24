@@ -1,0 +1,19 @@
+Error placement: 0
+Total number of placements: 58
+
+Method: DFS
+Size: 8
+Number of lizard: 9
+[3, 4]
+[5, 5]
+
+00000000
+00000000
+00000000
+00002000
+00000000
+00000200
+00000000
+00000000
+
+
