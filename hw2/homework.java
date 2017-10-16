@@ -60,6 +60,7 @@ public class homework{
         if(!checkDuplicate(root, row, col)) continue;
         // take this fruit, calculate the score, apply gravity
         Node successor = makeMove(input, root, row, col, false);
+        if(successor == null) continue;
         //printBox(successor.box);
         root.successors.add(successor);
         // then move to the next state for each operation
@@ -86,6 +87,7 @@ public class homework{
         // check if previous col already taken
         if(!checkDuplicate(root, row, col)) continue;
         Node successor = makeMove(input, root, row, col, true);
+        if(successor == null) continue;
         //printBox(successor.box);
         root.successors.add(successor);
         // then move to the next state for each operation
@@ -102,52 +104,14 @@ public class homework{
   }
 
   private boolean checkDuplicate(Node root, int row, int col) {
-    // check if this fruit link to previous fruit in the same row in any way
+    // simple check if this fruit link to previous fruit in the same row in any way
     char checkFruit = root.box.get(row).charAt(col);
     if(checkFruit == '*') return false;
     // when the previous col is the same fruit
     if(col - 1 >= 0 && checkFruit == root.box.get(row).charAt(col - 1)) return false;
+    // when the previous row is the same fruit
+    if(row - 1 >= 0 && checkFruit == root.box.get(row - 1).charAt(col)) return false;
 
-    if(row == 0 && col == 0) return true;
-
-    // check if the above row is all * when col is 0
-    boolean allStar = true;
-    if(col == 0 && row > 0) {
-      for(int upCol = 0; upCol < root.box.size(); upCol++) {
-        if(root.box.get(row - 1).charAt(upCol) != '*') {
-          allStar = false;
-          break;
-        }
-      }
-
-      if(allStar) return true;
-    }
-
-
-    return checkDuplicateHelper(root, row, col, row, col, -1, -1);
-  }
-
-  private boolean checkDuplicateHelper(Node root, int checkRow, int checkCol, int fixRow, int fixCol,
-  int lastRow, int lastCol) {
-    System.out.println("CheckRow: " + checkRow + ", CheckCol: " + checkCol);
-    if(checkRow == fixRow && checkCol < fixCol) return false;
-    if(checkRow < fixRow) return false;
-    // detect loop
-    if(lastRow != -1 && checkRow == fixRow && checkCol == fixCol) return true;
-
-    char checkFruit = root.box.get(fixRow).charAt(fixCol);
-    if(checkRow + 1 < root.box.size() && !(checkRow + 1 == lastRow && checkCol == lastCol) && checkFruit == root.box.get(checkRow + 1).charAt(checkCol)) {
-      if(!checkDuplicateHelper(root, checkRow + 1, checkCol, fixRow, fixCol, checkRow, checkCol)) return false;
-    }
-    if(checkRow - 1 >= 0 && !(checkRow - 1 == lastRow && checkCol == lastCol)  && checkFruit == root.box.get(checkRow - 1).charAt(checkCol)) {
-      if(!checkDuplicateHelper(root, checkRow - 1, checkCol, fixRow, fixCol, checkRow, checkCol)) return false;
-    }
-    if(checkCol + 1 < root.box.size() && !(checkRow == lastRow && checkCol + 1 == lastCol)  && checkFruit == root.box.get(checkRow).charAt(checkCol + 1)) {
-      if(!checkDuplicateHelper(root, checkRow, checkCol + 1, fixRow, fixCol, checkRow, checkCol)) return false;
-    }
-    if(checkCol - 1 >= 0 && !(checkRow == lastRow && checkCol - 1 == lastCol)  && checkFruit == root.box.get(checkRow).charAt(checkCol - 1)) {
-      if(!checkDuplicateHelper(root, checkRow, checkCol - 1, fixRow, fixCol, checkRow, checkCol)) return false;
-    }
 
     return true;
   }
@@ -157,7 +121,14 @@ public class homework{
     char fruit = node.box.get(row).charAt(col);
     node.rowTaken = row;
     node.colTaken = col;
-    int score = takeFruit(input, node, row, col, fruit);
+
+    int score = takeFruit(input, node, row, col, fruit, row, col);
+    if(score == -1) {
+      // the resulting state already existed
+      return null;
+    }
+    //System.out.println("================================");
+    //printBox(node.box);
     if(node.myTurn) {
       node.me += (int)Math.pow(score, 2);
     }
@@ -202,25 +173,52 @@ public class homework{
     }
   }
 
-  private int takeFruit(Input input, Node node, int row, int col, char fruit) {
+  private int takeFruit(Input input, Node node, int row, int col, char fruit,
+  int fixRow, int fixCol) {
     if(fruit == '*') return 0;
     String cells = node.box.get(row);
     char currFruit = cells.charAt(col);
     if(currFruit != fruit) return 0;
+    // if this cell is at the same row, but previous col, then should skip it
+    if(row == fixRow && col < fixCol) return -1;
+    // if it connects to a cell in upper row, skip it, such state already explored
+    if(row < fixRow) return -1;
+
     cells = cells.substring(0, col) + "*" + cells.substring(col + 1);
     node.box.set(row, cells);
     int result = 1;
+    int subResult = 0;
     if(row + 1 < input.size) {
-      result += takeFruit(input, node, row + 1, col, fruit);
+      subResult = takeFruit(input, node, row + 1, col, fruit, fixRow, fixCol);
+      if(subResult == -1) {
+        // detected a connection to previous cols or rows
+        return -1;
+      }
+      result += subResult;
     }
     if(col + 1 < input.size) {
-      result += takeFruit(input, node, row, col + 1, fruit);
+      subResult = takeFruit(input, node, row, col + 1, fruit, fixRow, fixCol);
+      if(subResult == -1) {
+        // detected a connection to previous cols or rows
+        return -1;
+      }
+      result += subResult;
     }
     if(row - 1 >= 0) {
-      result += takeFruit(input, node, row - 1, col, fruit);
+      subResult = takeFruit(input, node, row - 1, col, fruit, fixRow, fixCol);
+      if(subResult == -1) {
+        // detected a connection to previous cols or rows
+        return -1;
+      }
+      result += subResult;
     }
     if(col - 1 >= 0) {
-      result += takeFruit(input, node, row, col - 1, fruit);
+      subResult = takeFruit(input, node, row, col - 1, fruit, fixRow, fixCol);
+      if(subResult == -1) {
+        // detected a connection to previous cols or rows
+        return -1;
+      }
+      result += subResult;
     }
 
     return result;
