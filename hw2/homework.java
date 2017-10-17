@@ -33,24 +33,24 @@ public class homework{
     int row = 0;
     int col = 0;
     Node startNode = new Node(isMax, input);
-    Node chosenNode = maxExpand(input, startNode);
-    //startNode.decisionNode = chosenNode;
+    Node alpha = new Node(Integer.MIN_VALUE);
+    Node beta = new Node(Integer.MAX_VALUE);
+    Node chosenNode = maxExpand(input, startNode, alpha, beta);
+    startNode.decisionNode = chosenNode;
     if(chosenNode == null) System.out.println("what");
-    boolean result = testGraph(input, startNode);
-    printGraph(startNode);
+    //boolean result = testGraph(input, startNode);
+    //System.out.println(result);
+    printResult(input, chosenNode);
 
-    System.out.println("====================================");
-    System.out.println("====================================");
-    System.out.println("====================================");
-    printDecision(startNode);
-    System.out.println(result);
+    //printGraph(startNode);
 
-    if(result){
-      printResult(chosenNode);
-    }
+    //System.out.println("====================================");
+    //System.out.println("====================================");
+    //System.out.println("====================================");
+    //printDecision(startNode);
   }
 
-  private Node maxExpand(Input input, Node root) {
+  private Node maxExpand(Input input, Node root, Node alpha, Node beta) {
     // previous row is max nodes, run over all cells, and return the max
     int maxDiff = Integer.MIN_VALUE;
     Node maxNode = null;
@@ -64,19 +64,26 @@ public class homework{
         //printBox(successor.box);
         root.successors.add(successor);
         // then move to the next state for each operation
-        Node minNodeOfSuccessor = minExpand(input, successor);
-        //successor.decisionNode = minNodeOfSuccessor;
+        Node minNodeOfSuccessor = minExpand(input, successor, alpha, beta);
+        successor.decisionNode = minNodeOfSuccessor;
         maxNode = successor.score > maxDiff ? successor : maxNode;
         maxDiff = Math.max(maxDiff, successor.score);
+        if(minNodeOfSuccessor == null) continue;
+        if(minNodeOfSuccessor.score > alpha.score) {
+          alpha.score = minNodeOfSuccessor.score;
+          alpha.rowTaken = minNodeOfSuccessor.rowTaken;
+          alpha.colTaken = minNodeOfSuccessor.colTaken;
+        }
+        if(alpha.score >= beta.score) return beta;
       }
     }
-
+    root.box = null;
     root.score = maxDiff == Integer.MIN_VALUE ? root.score : maxDiff;
-    root.decisionNode = maxNode;
+    //root.decisionNode = maxNode;
     return maxNode;
   }
 
-  private Node minExpand(Input input, Node root) {
+  private Node minExpand(Input input, Node root, Node alpha, Node beta) {
     int minDiff = Integer.MAX_VALUE;
     int successorVal = 0;
     Node minNode = null;
@@ -91,15 +98,23 @@ public class homework{
         //printBox(successor.box);
         root.successors.add(successor);
         // then move to the next state for each operation
-        Node maxNodeOfSuccessor = maxExpand(input, successor);
-        //successor.decisionNode = maxNodeOfSuccessor;
+        Node maxNodeOfSuccessor = maxExpand(input, successor, alpha, beta);
+        successor.decisionNode = maxNodeOfSuccessor;
         minNode = successor.score > minDiff ? successor : minNode;
         minDiff = Math.min(minDiff, successor.score);
+        if(maxNodeOfSuccessor == null) continue;
+        beta = maxNodeOfSuccessor.score < beta.score ? maxNodeOfSuccessor : beta;
+        if(maxNodeOfSuccessor.score > beta.score) {
+          beta.score = maxNodeOfSuccessor.score;
+          beta.rowTaken = maxNodeOfSuccessor.rowTaken;
+          beta.colTaken = maxNodeOfSuccessor.colTaken;
+        }
+        if(beta.score <= alpha.score) return alpha;
       }
     }
-
+    root.box = null;
     root.score = minDiff == Integer.MAX_VALUE ? root.score : minDiff;
-    root.decisionNode = minNode;
+    //root.decisionNode = minNode;
     return minNode;
   }
 
@@ -257,14 +272,26 @@ public class homework{
   private boolean testGraph(Input input, Node root) {
     if(root == null) return true;
     if(root.successors.size() == 0) return true;
-    if(root.score == -1) return false;
-    if(!testBox(input, root)) return false;
+    if(root.score == -1) {
+      System.out.println("Node score has -1");
+      return false;
+    }
+    if(!testBox(input, root)) {
+      System.out.println("Root Gravity not applied");
+      return false;
+    }
 
     int score = root.isMax ? Integer.MIN_VALUE : Integer.MAX_VALUE;
 
     for(Node node : root.successors) {
-      if(node.rowTaken == -1 || node.colTaken == -1) return false;
-      if(!testBox(input, node)) return false;
+      if(node.rowTaken == -1 || node.colTaken == -1) {
+        System.out.println("Node has no taken data");
+        return false;
+      }
+      if(!testBox(input, node)) {
+        System.out.println("Loop gravity not applied");
+        return false;
+      }
       if(!testGraph(input, node)) {
         return false;
       }
@@ -276,7 +303,10 @@ public class homework{
       }
     }
 
-    if(score != root.score) return false;
+    if(score != root.score) {
+      System.out.println("Score does not match");
+      return false;
+    }
 
     return true;
   }
@@ -302,12 +332,14 @@ public class homework{
     return true;
   }
 
-  private void printResult(Node node) {
+  private void printResult(Input input, Node node) {
     // convert row, col to answer
     char column = (char)((int)'A' + node.colTaken);
     String row = Integer.toString(node.rowTaken + 1);
     System.out.println(column+row);
-    printBox(node.box);
+    node.box = input.box;
+    Node nodeWithBox = makeMove(input, node, node.rowTaken, node.colTaken, true);
+    printBox(nodeWithBox.box);
   }
 
   private void printDecision(Node node) {
@@ -446,6 +478,19 @@ public class homework{
       this.isMax = isMax;
       score = -1;
       this.box = new ArrayList<String>(input.box);
+      successors = new ArrayList<Node>();
+      rowTaken = -1;
+      colTaken = -1;
+      me = 0;
+      enemy = 0;
+      myTurn = false;
+      decisionNode = null;
+    }
+
+    public Node(int score) {
+      this.isMax = isMax;
+      this.score = score;
+      box = new ArrayList<String>();
       successors = new ArrayList<Node>();
       rowTaken = -1;
       colTaken = -1;
