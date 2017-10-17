@@ -35,23 +35,20 @@ public class homework{
     Node startNode = new Node(isMax, input);
     Node alpha = new Node(Integer.MIN_VALUE);
     Node beta = new Node(Integer.MAX_VALUE);
-    Node chosenNode = maxExpand(input, startNode, alpha, beta);
-    startNode.decisionNode = chosenNode;
+    int limit = 4;
+    int depthCount = 0;
+    Node chosenNode = maxExpand(input, startNode, alpha, beta, depthCount, limit);
     if(chosenNode == null) System.out.println("what");
     //boolean result = testGraph(input, startNode);
-    //System.out.println(result);
+    System.out.println("Result:");
     printResult(input, chosenNode);
 
     //printGraph(startNode);
-
-    //System.out.println("====================================");
-    //System.out.println("====================================");
-    //System.out.println("====================================");
-    //printDecision(startNode);
   }
 
-  private Node maxExpand(Input input, Node root, Node alpha, Node beta) {
+  private Node maxExpand(Input input, Node root, Node alpha, Node beta, int depthCount, int limit) {
     // previous row is max nodes, run over all cells, and return the max
+    if(limit != -1 && depthCount == limit) return null;
     int maxDiff = Integer.MIN_VALUE;
     Node maxNode = null;
     int successorVal = 0;
@@ -59,31 +56,42 @@ public class homework{
       for(int col = 0; col < input.size; col++) {
         if(!checkDuplicate(root, row, col)) continue;
         // take this fruit, calculate the score, apply gravity
-        Node successor = makeMove(input, root, row, col, false);
+        Node successor = makeMove(input, root, row, col, false, false);
         if(successor == null) continue;
         //printBox(successor.box);
         root.successors.add(successor);
         // then move to the next state for each operation
-        Node minNodeOfSuccessor = minExpand(input, successor, alpha, beta);
-        successor.decisionNode = minNodeOfSuccessor;
+        Node minNodeOfSuccessor = minExpand(input, successor, alpha, beta, depthCount + 1, limit);
         maxNode = successor.score > maxDiff ? successor : maxNode;
         maxDiff = Math.max(maxDiff, successor.score);
         if(minNodeOfSuccessor == null) continue;
-        if(minNodeOfSuccessor.score > alpha.score) {
-          alpha.score = minNodeOfSuccessor.score;
-          alpha.rowTaken = minNodeOfSuccessor.rowTaken;
-          alpha.colTaken = minNodeOfSuccessor.colTaken;
+        //alpha = minNodeOfSuccessor.score > alpha.score ? minNodeOfSuccessor : alpha;
+        alpha = minNodeOfSuccessor.score > alpha.score ? successor : alpha;
+
+        if(alpha.score >= beta.score) {
+          /*
+          System.out.println("================================");
+          System.out.println("Max Pruning is happening");
+          System.out.println("Alpha:");
+          //printResult(input, alpha);
+          System.out.println("Beta:");
+          //printResult(input, beta);
+          System.out.println("================================");
+          */
+          root.box = null;
+          return beta;
         }
-        if(alpha.score >= beta.score) return beta;
       }
     }
+
     root.box = null;
     root.score = maxDiff == Integer.MIN_VALUE ? root.score : maxDiff;
     //root.decisionNode = maxNode;
     return maxNode;
   }
 
-  private Node minExpand(Input input, Node root, Node alpha, Node beta) {
+  private Node minExpand(Input input, Node root, Node alpha, Node beta, int depthCount, int limit) {
+    if(limit != -1 && depthCount == limit) return null;
     int minDiff = Integer.MAX_VALUE;
     int successorVal = 0;
     Node minNode = null;
@@ -93,23 +101,31 @@ public class homework{
         // take this fruit, calculate the score, apply gravity
         // check if previous col already taken
         if(!checkDuplicate(root, row, col)) continue;
-        Node successor = makeMove(input, root, row, col, true);
+        Node successor = makeMove(input, root, row, col, true, false);
         if(successor == null) continue;
         //printBox(successor.box);
         root.successors.add(successor);
         // then move to the next state for each operation
-        Node maxNodeOfSuccessor = maxExpand(input, successor, alpha, beta);
-        successor.decisionNode = maxNodeOfSuccessor;
+        Node maxNodeOfSuccessor = maxExpand(input, successor, alpha, beta, depthCount + 1, limit);
         minNode = successor.score > minDiff ? successor : minNode;
         minDiff = Math.min(minDiff, successor.score);
         if(maxNodeOfSuccessor == null) continue;
-        beta = maxNodeOfSuccessor.score < beta.score ? maxNodeOfSuccessor : beta;
-        if(maxNodeOfSuccessor.score > beta.score) {
-          beta.score = maxNodeOfSuccessor.score;
-          beta.rowTaken = maxNodeOfSuccessor.rowTaken;
-          beta.colTaken = maxNodeOfSuccessor.colTaken;
+        //beta = maxNodeOfSuccessor.score < beta.score ? maxNodeOfSuccessor : beta;
+        beta = maxNodeOfSuccessor.score < beta.score ? successor : beta;
+
+        if(beta.score <= alpha.score) {
+          /*
+          System.out.println("================================");
+          System.out.println("Min Pruning is happening");
+          System.out.println("Alpha:");
+          //printResult(input, alpha);
+          System.out.println("Beta:");
+          //printResult(input, beta);
+          System.out.println("================================");
+          */
+          root.box = null;
+          return alpha;
         }
-        if(beta.score <= alpha.score) return alpha;
       }
     }
     root.box = null;
@@ -131,13 +147,12 @@ public class homework{
     return true;
   }
 
-  private Node makeMove(Input input, Node root, int row, int col, boolean isMax) {
+  private Node makeMove(Input input, Node root, int row, int col, boolean isMax, boolean forResult) {
     Node node = new Node(isMax, root);
     char fruit = node.box.get(row).charAt(col);
-    node.rowTaken = row;
-    node.colTaken = col;
+    node.actions.add(new FruitsTaken(row, col));
 
-    int score = takeFruit(input, node, row, col, fruit, row, col);
+    int score = takeFruit(input, node, row, col, fruit, row, col, forResult);
     if(score == -1) {
       // the resulting state already existed
       return null;
@@ -189,22 +204,22 @@ public class homework{
   }
 
   private int takeFruit(Input input, Node node, int row, int col, char fruit,
-  int fixRow, int fixCol) {
+  int fixRow, int fixCol, boolean forResult) {
     if(fruit == '*') return 0;
     String cells = node.box.get(row);
     char currFruit = cells.charAt(col);
     if(currFruit != fruit) return 0;
     // if this cell is at the same row, but previous col, then should skip it
-    if(row == fixRow && col < fixCol) return -1;
+    if(!forResult && row == fixRow && col < fixCol) return -1;
     // if it connects to a cell in upper row, skip it, such state already explored
-    if(row < fixRow) return -1;
+    if(!forResult && row < fixRow) return -1;
 
     cells = cells.substring(0, col) + "*" + cells.substring(col + 1);
     node.box.set(row, cells);
     int result = 1;
     int subResult = 0;
     if(row + 1 < input.size) {
-      subResult = takeFruit(input, node, row + 1, col, fruit, fixRow, fixCol);
+      subResult = takeFruit(input, node, row + 1, col, fruit, fixRow, fixCol, forResult);
       if(subResult == -1) {
         // detected a connection to previous cols or rows
         return -1;
@@ -212,7 +227,7 @@ public class homework{
       result += subResult;
     }
     if(col + 1 < input.size) {
-      subResult = takeFruit(input, node, row, col + 1, fruit, fixRow, fixCol);
+      subResult = takeFruit(input, node, row, col + 1, fruit, fixRow, fixCol, forResult);
       if(subResult == -1) {
         // detected a connection to previous cols or rows
         return -1;
@@ -220,7 +235,7 @@ public class homework{
       result += subResult;
     }
     if(row - 1 >= 0) {
-      subResult = takeFruit(input, node, row - 1, col, fruit, fixRow, fixCol);
+      subResult = takeFruit(input, node, row - 1, col, fruit, fixRow, fixCol, forResult);
       if(subResult == -1) {
         // detected a connection to previous cols or rows
         return -1;
@@ -228,7 +243,7 @@ public class homework{
       result += subResult;
     }
     if(col - 1 >= 0) {
-      subResult = takeFruit(input, node, row, col - 1, fruit, fixRow, fixCol);
+      subResult = takeFruit(input, node, row, col - 1, fruit, fixRow, fixCol, forResult);
       if(subResult == -1) {
         // detected a connection to previous cols or rows
         return -1;
@@ -268,7 +283,7 @@ public class homework{
 
     return input;
   }
-
+  /*
   private boolean testGraph(Input input, Node root) {
     if(root == null) return true;
     if(root.successors.size() == 0) return true;
@@ -330,49 +345,57 @@ public class homework{
     }
 
     return true;
-  }
+  }*/
 
   private void printResult(Input input, Node node) {
     // convert row, col to answer
-    char column = (char)((int)'A' + node.colTaken);
-    String row = Integer.toString(node.rowTaken + 1);
-    System.out.println(column+row);
+    Node nodeWithBox = node;
     node.box = input.box;
-    Node nodeWithBox = makeMove(input, node, node.rowTaken, node.colTaken, true);
-    printBox(nodeWithBox.box);
+    System.out.println("Node score: " + node.score);
+    System.out.println("Node my score: " + node.me);
+    System.out.println("Node enemy score: " + node.enemy);
+    //node.me = 0;
+    //node.enemy = 0;
+    //node.score = 0;
+    for(FruitsTaken action : node.actions) {
+      char column = (char)((int)'A' + action.col);
+      String row = Integer.toString(action.row + 1);
+      System.out.println(column+row);
+      nodeWithBox = makeMove(input, nodeWithBox, action.row, action.col, true, true);
+      System.out.println("Score: " + nodeWithBox.score);
+      System.out.println("My Score: " + nodeWithBox.me);
+      System.out.println("Enemy Score: " + nodeWithBox.enemy);
+      printBox(nodeWithBox.box);
+    }
+    node.box = null;
   }
-
-  private void printDecision(Node node) {
-    if(node == null) return;
-    Node decision = node.decisionNode;
-    if(decision == null) return;
-
-    if(decision.myTurn) {
-      System.out.println("My Turn");
-    }
-    else {
-      System.out.println("Enemy Turn");
-    }
-    if(decision.isMax) {
-      System.out.println("Node Type: MaxNode");
-    }
-    else {
-      System.out.println("Node Type: MinNode");
-    }
-    System.out.println("Row: " + decision.rowTaken + ", Col: " + decision.colTaken);
-    System.out.println("My Score: " + decision.me);
-    System.out.println("Enemy Score: " + decision.enemy);
-    printBox(decision.box);
-    System.out.println("------------------");
-    printDecision(decision);
-  }
-
+  /*
   private void printGraph(Node root) {
     List<List<Node>> trees = new ArrayList<>();
     List<Node> nodes = new ArrayList<Node>();
     DFS(root, trees, nodes);
     // now got the trees
+    int forOne = Integer.MAX_VALUE;
+    int forZero = Integer.MAX_VALUE;
+    boolean one = false;
+    boolean zero = false;
     for(List<Node> branch : trees) {
+      one = false;
+      zero = false;
+      Node test = branch.get(0);
+      if(test.rowTaken == 0 && test.colTaken == 8) {
+        Node test2 = branch.get(1);
+        if(!(test2.rowTaken == 3 && test2.colTaken == 7)) continue;
+        one = true;
+      }
+      else if(!(test.rowTaken == 4 && test.colTaken == 7)) {
+        continue;
+      }
+
+      if(!one) {
+        zero = true;
+      }
+
       System.out.println("========================================");
       for(Node node : branch) {
         if(node.myTurn) {
@@ -387,14 +410,25 @@ public class homework{
         else {
           System.out.println("Node Type: MinNode");
         }
-        System.out.println("Row: " + node.rowTaken + ", Col: " + node.colTaken);
+        char column = (char)((int)'A' + node.colTaken);
+        String row = Integer.toString(node.rowTaken + 1);
+        System.out.println("Col: " + column + ", Row: " + row);
         System.out.println("My Score: " + node.me);
         System.out.println("Enemy Score: " + node.enemy);
-        printBox(node.box);
+        //printBox(node.box);
         System.out.println("------------------");
+        if(one) {
+          forOne = Math.min(forOne, node.score);
+        }
+        else {
+          forZero = Math.min(forZero, node.score);
+        }
       }
     }
-  }
+
+    System.out.println("Max Diff by choosing 1: " + forOne);
+    System.out.println("Max Diff by choosing 0: " + forZero);
+  }*/
 
   private void DFS(Node root, List<List<Node>> trees, List<Node> nodes) {
     if(root.successors.size() == 0) {
@@ -436,29 +470,35 @@ public class homework{
     System.out.println();
   }
 
+  static class FruitsTaken{
+    public int row;
+    public int col;
+
+    public FruitsTaken(int row, int col) {
+      this.row = row;
+      this.col = col;
+    }
+  }
+
   static class Node{
     public boolean isMax;
     public int score;
     public ArrayList<String> box;
     public ArrayList<Node> successors;
-    public int rowTaken; // the row, col this state being taken
-    public int colTaken;
+    public ArrayList<FruitsTaken> actions;
     public int me; // the score I get
     public int enemy; // the score enemy get
     public boolean myTurn;
-    public Node decisionNode;
 
     public Node(boolean isMax) {
       this.isMax = isMax;
       score = -1;
       box = new ArrayList<String>();
       successors = new ArrayList<Node>();
-      rowTaken = -1;
-      colTaken = -1;
+      actions = new ArrayList<FruitsTaken>();
       me = 0;
       enemy = 0;
       myTurn = false;
-      decisionNode = null;
     }
 
     public Node(boolean isMax, Node root) {
@@ -466,12 +506,10 @@ public class homework{
       score = root.score;
       this.box = new ArrayList<String>(root.box);
       successors = new ArrayList<Node>();
-      rowTaken = -1;
-      colTaken = -1;
+      actions = new ArrayList<FruitsTaken>(root.actions);
       me = root.me;
       enemy = root.enemy;
       myTurn = !root.myTurn;
-      decisionNode = null;
     }
 
     public Node(boolean isMax, Input input) {
@@ -479,12 +517,10 @@ public class homework{
       score = -1;
       this.box = new ArrayList<String>(input.box);
       successors = new ArrayList<Node>();
-      rowTaken = -1;
-      colTaken = -1;
+      actions = new ArrayList<FruitsTaken>();
       me = 0;
       enemy = 0;
       myTurn = false;
-      decisionNode = null;
     }
 
     public Node(int score) {
@@ -492,12 +528,10 @@ public class homework{
       this.score = score;
       box = new ArrayList<String>();
       successors = new ArrayList<Node>();
-      rowTaken = -1;
-      colTaken = -1;
+      actions = new ArrayList<FruitsTaken>();
       me = 0;
       enemy = 0;
       myTurn = false;
-      decisionNode = null;
     }
   }
 
