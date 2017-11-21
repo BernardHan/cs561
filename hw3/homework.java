@@ -128,6 +128,7 @@ public class homework{
 
   private ArrayList<Clause> resolve(Clause c1, Clause c2) {
     ArrayList<Clause> result = new ArrayList<Clause>();
+    if(hasCommonAncestor(c1, c2)) return result;
     // generate all posible resolution results here
     // need to do Unify somewhere
     printClause(c1);
@@ -141,6 +142,10 @@ public class homework{
           //apply unify and resolution
           Clause clause = unifyClause(p1, p2, c1, c2); // predicate, var, clause should be new
           if(clause != null) {
+            clause.ancestors.addAll(c1.ancestors);
+            clause.ancestors.addAll(c2.ancestors);
+            clause.ancestors.add(c1);
+            clause.ancestors.add(c2);
             result.add(clause);
           }
         }
@@ -161,6 +166,25 @@ public class homework{
     return result;
   }
 
+  private boolean hasCommonAncestor(Clause c1, Clause c2) {
+    HashMap<String, Integer> ancestors1 = new HashMap<String, Integer>();
+    String string1 = c1.toString();
+    String string2 = c2.toString();
+    if(string1.equals(string2)) return true;
+    for(Clause clause : c1.ancestors) {
+      String key = clause.toString();
+      ancestors1.put(key, 0);
+      if(string2.equals(key)) return true;
+    }
+    for(Clause clause : c2.ancestors) {
+      String key = clause.toString();
+      if(ancestors1.containsKey(key)) return true;
+      if(string1.equals(key)) return true;
+    }
+
+    return false;
+  }
+
   private boolean checkCollide(Predicate p1, Predicate p2) {
     if(p1.vars.size() != p2.vars.size()) return false;
     for(int i = 0; i < p1.vars.size(); i++) {
@@ -175,7 +199,7 @@ public class homework{
 
   private Clause unifyClause(Predicate p1, Predicate p2, Clause c1, Clause c2) {
     // first see if p1 can unify with p2
-    if(allEmpty(c1, c2)) return null;
+    //if(allEmpty(c1, c2)) return null;
     ArrayList<Variable> uniVars = unifyPredicate(p1, p2);
     if(uniVars == null) return null;
     Clause result = new Clause(c1.predicates.size() + c2.predicates.size(), c1.vars.size() + c2.vars.size());
@@ -302,6 +326,7 @@ public class homework{
 
   private boolean unifyVar(Variable v1, Variable v2, ArrayList<Variable> result) {
     // when both are not empty, and values are different
+    if(v1.value.equals("") && v2.value.equals("")) return false;
     if(!v1.value.equals("") && !v2.value.equals("") && !v1.value.equals(v2.value)) return false;
     if(v1.value.equals("")) {
       Variable v_dup = new Variable(v1.name);
@@ -445,18 +470,20 @@ public class homework{
     public ArrayList<Predicate> predicates;
     public ArrayList<Variable> vars;
     public boolean used;
-
+    public ArrayList<Clause> ancestors;
 
     public Clause() {
       predicates = new ArrayList<Predicate>();
       vars = new ArrayList<Variable>();
       used = false;
+      ancestors = new ArrayList<Clause>();
     }
 
     public Clause(int pSize, int vSize) {
       predicates = new ArrayList<Predicate>(pSize);
       vars = new ArrayList<Variable>(vSize);
       used = false;
+      ancestors = new ArrayList<Clause>();
     }
 
     public Variable getVar(String name) {
